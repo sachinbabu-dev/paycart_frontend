@@ -192,16 +192,40 @@ export default function CheckoutPage(props: PageProps<"/checkout/[id]">) {
 
 async function startCheckout(orderId: string, token: string): Promise<string> {
   // Reuse a per-order idempotency key so refreshing this page returns the
-  // same PaymentIntent from the backend instead of creating a new one.
-  const stored = sessionStorage.getItem(`idem:${orderId}`);
-  const key = stored ?? generateIdempotencyKey();
-  if (!stored) sessionStorage.setItem(`idem:${orderId}`, key);
-  const res = await api.checkout(orderId, key, token);
-  const secret = pickClientSecret(res);
-  if (!secret) {
-    throw new Error(
-      "Checkout succeeded but no client_secret was returned by the API.",
-    );
+  // same PaymentIntent from the backend instead of creating a new one. If
+  // Stripe rejects the key as reused-with-different-params (e.g. left over
+  // from the older double-header bug), drop it and retry once with a fresh
+  // key.
+  const storageKey = `idem:${orderId}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const stored = sessionStorage.getItem(storageKey);
+    const key = stored ?? generateIdempotencyKey();
+    if (!stored) sessionStorage.setItem(storageKey, key);
+    try {
+      const res = await api.checkout(orderId, key, token);
+      const secret = pickClientSecret(res);
+      if (!secret) {
+        throw new Error(
+          "Checkout succeeded but no client_secret was returned by the API.",
+        );
+      }
+      return secret;
+    } catch (e) {
+      if (attempt === 0 && isIdempotencyMismatch(e)) {
+        sessionStorage.removeItem(storageKey);
+        continue;
+      }
+      throw e;
+    }
   }
-  return secret;
+  throw new Error("Could not start checkout.");
+}
+
+function isIdempotencyMismatch(e: unknown): boolean {
+  if (!(e instanceof ApiError)) return false;
+  const msg = e.message?.toLowerCase() ?? "";
+  return (
+    msg.includes("idempotent") &&
+    (msg.includes("same parameters") || msg.includes("different parameters"))
+  );
 }

@@ -6,6 +6,8 @@ import type {
   Order,
   OrderEvent,
   Product,
+  SubscribeResponse,
+  Subscription,
 } from "./types";
 
 const CLIENT_BASE = "/api/paycart";
@@ -104,10 +106,11 @@ export const api = {
       {
         method: "POST",
         token,
-        headers: {
-          "Idempotency-Key": idempotencyKey,
-          "idempotency-key": idempotencyKey,
-        },
+        // Single header — sending both casings collapses on the wire to a
+        // comma-joined duplicate that Stripe treats as a distinct key on
+        // retry ("Keys for idempotent requests can only be used with the
+        // same parameters they were first used with").
+        headers: { "Idempotency-Key": idempotencyKey },
       },
     ),
   mintStreamToken: (token: string) =>
@@ -115,10 +118,59 @@ export const api = {
       "/auth/stream-token",
       { method: "POST", token },
     ),
+  subscribe: (productSku: string, idempotencyKey: string, token: string) =>
+    request<SubscribeResponse>("/subscriptions", {
+      method: "POST",
+      body: { productSku },
+      token,
+      // HTTP header names are case-insensitive; sending both casings makes
+      // the wire value collapse to a comma-joined duplicate ("key, key"),
+      // which Stripe treats as a *different* combined string and rejects
+      // on retry with "Keys for idempotent requests can only be used with
+      // the same parameters they were first used with".
+      headers: { "Idempotency-Key": idempotencyKey },
+    }),
+  listSubscriptions: (token: string) =>
+    request<Subscription[]>("/subscriptions", { token }),
+  getSubscription: (id: string, token: string) =>
+    request<Subscription>(`/subscriptions/${encodeURIComponent(id)}`, { token }),
+  cancelSubscription: (
+    id: string,
+    token: string,
+    opts: { immediately?: boolean } = {},
+  ) => {
+    const qs = opts.immediately ? "?immediately=true" : "";
+    return request<Subscription>(
+      `/subscriptions/${encodeURIComponent(id)}/cancel${qs}`,
+      { method: "POST", token },
+    );
+  },
+  syncSubscription: (id: string, token: string) =>
+    request<Subscription>(`/subscriptions/${encodeURIComponent(id)}/sync`, {
+      method: "POST",
+      token,
+    }),
 };
+
+export function pickSubscribeClientSecret(res: SubscribeResponse): string | null {
+  return res.clientSecret ?? res.client_secret ?? null;
+}
+
+export function pickSubscriptionId(res: SubscribeResponse): string | null {
+  return (
+    res.id ?? res.subscriptionId ?? res.subscription?.id ?? null
+  );
+}
 
 export function orderStreamUrl(orderId: string, streamToken: string): string {
   return `/api/paycart/orders/${encodeURIComponent(orderId)}/stream?token=${encodeURIComponent(streamToken)}`;
+}
+
+export function subscriptionStreamUrl(
+  subscriptionId: string,
+  streamToken: string,
+): string {
+  return `/api/paycart/subscriptions/${encodeURIComponent(subscriptionId)}/stream?token=${encodeURIComponent(streamToken)}`;
 }
 
 export function pickAccessToken(res: AuthResponse): string | null {

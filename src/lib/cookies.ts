@@ -1,6 +1,9 @@
 "use client";
 
-const DEFAULT_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+// Match the backend JWT's 7-day lifetime — the cookie shouldn't outlive its
+// payload. Anything longer just guarantees a 401 the first time the user
+// comes back to the site with an expired token still riding along.
+const DEFAULT_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 const CONSENT_COOKIE = "kaffeine-consent";
 
 export type Consent = "granted" | "denied";

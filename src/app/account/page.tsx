@@ -20,6 +20,7 @@ import {
   Receipt,
   BadgeCheck,
   Coffee,
+  Repeat,
 } from "lucide-react";
 
 const PERSISTED_KEYS = [
@@ -161,6 +162,20 @@ export default function AccountPage() {
               </button>
             )}
           </div>
+        </PrefCard>
+
+        <PrefCard
+          icon={<Repeat className="h-4 w-4" />}
+          title="Subscriptions"
+          detail="Manage standing orders — pause, cancel at period end, or end immediately."
+          badge={{ text: "manage", tone: "ink" }}
+        >
+          <Link
+            href="/account/subscriptions"
+            className="btn-ghost text-sm"
+          >
+            Open subscriptions
+          </Link>
         </PrefCard>
 
         <PrefCard

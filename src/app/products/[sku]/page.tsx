@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/format";
 import ProductArt from "@/components/ProductArt";
 import StockPill from "@/components/StockPill";
 import AddToCart from "@/components/AddToCart";
+import SubscribeButton from "@/components/SubscribeButton";
 import type { InventoryItem, Product } from "@/lib/types";
 import { ArrowLeft } from "lucide-react";
 
@@ -85,7 +86,8 @@ export default async function ProductPage(
             </p>
           )}
 
-          <div className="mt-8">
+          <div className="mt-8 flex flex-col gap-4">
+            {product.type === "recurring" && <SubscribeButton product={product} />}
             <AddToCart product={product} stock={stock} />
           </div>
 
